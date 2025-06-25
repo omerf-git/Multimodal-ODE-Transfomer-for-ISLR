@@ -238,7 +238,7 @@ class PositionwiseFeedForward(nn.Module):
         self.w_2 = nn.Conv1d(d_inner_hid, d_hid, 1)  # position-wise
         self.layer_norm = LayerNormalization(d_hid) if layer_norm else nn.Identity()
         self.dropout = nn.Dropout(dropout)
-        self.relu = nn.ReLU()
+        self.relu = nn.ReLU(inplace=False)
 
     def forward(self, x):
         residual = x
@@ -281,5 +281,5 @@ class PositionEncoding(nn.Module):
     def forward(self, x):
         indeces = torch.arange(0, x.size(1)).to(self.enc.weight.device, torch.long)
         encodings = self.enc(indeces)
-        x += encodings
+        x = x + encodings  # in-place DEĞİL!
         return x

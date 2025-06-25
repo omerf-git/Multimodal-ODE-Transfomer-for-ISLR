@@ -50,7 +50,7 @@ class VTNHCPF(nn.Module):
         zp = torch.cat((z, pose_clip), dim=-1)
 
         zp = self.norm(zp)
-        zp = torch.nn.functional.relu(self.bottle_mm(zp))
+        zp = torch.nn.functional.relu(self.bottle_mm(zp), inplace=False)
 
         zp = self.self_attention_decoder(zp)
 

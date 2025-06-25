@@ -1,1 +1,4 @@
 pretrained_models/*
+data/*
+venv/*
+logs/*

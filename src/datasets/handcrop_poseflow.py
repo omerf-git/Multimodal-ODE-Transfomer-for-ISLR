@@ -13,7 +13,7 @@ from .common import collect_samples
 from .transforms import Compose, Scale, MultiScaleCrop, ToFloatTensor, PermuteImage, Normalize, scales, NORM_STD_IMGNET, \
     NORM_MEAN_IMGNET, CenterCrop, IMAGE_SIZE, DeleteFlowKeypoints, ColorJitter, RandomHorizontalFlip
 
-_DATA_DIR_LOCAL = '/project/data/chalearn21/data/mp4'
+_DATA_DIR_LOCAL = '/home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/data/mp4'
 
 SHOULDER_DIST_EPSILON = 1.2
 WRIST_DELTA = 0.15

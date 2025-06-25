@@ -196,7 +196,7 @@ def resize(img, size):
         size = (size, size)
     if isinstance(img, np.ndarray):
         return cv2.resize(img, size)
-    return img.resize(size, Image.LINEAR)
+    return img.resize(size, Image.Resampling.BILINEAR)
 
 
 def crop(img, position):
@@ -230,7 +230,7 @@ class MultiScaleCrop(object):
     """
 
     def __init__(self, size, scale_ratios, fix_crop=True, more_fix_crop=True, max_distort=1,
-                 interpolation=Image.LINEAR):
+                 interpolation=Image.Resampling.BILINEAR):
         self.height = size[0]
         self.width = size[1]
         self.scale_ratios = scale_ratios

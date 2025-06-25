@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 import pytorch_lightning as pl
 import torch
 from torch.optim.lr_scheduler import StepLR
+import torchmetrics
 
 from .vtn_hcpf import VTNHCPF
 from .vtn_hcpf_d import VTNHCPFD
@@ -30,16 +31,21 @@ class Module(pl.LightningModule):
             self.model = VTNHCPF(NUM_CLASSES, self.hparams.num_heads, self.hparams.num_layers, self.hparams.embed_size,
                                  self.hparams.sequence_length, self.hparams.cnn,
                                  self.hparams.freeze_layers,
-                                 self.hparams.dropout, device=self.device)
+                                 self.hparams.dropout)
         elif model == 'VTN_HCPF_D':
             self.model = VTNHCPFD(NUM_CLASSES, self.hparams.num_heads, self.hparams.num_layers, self.hparams.embed_size,
                                   self.hparams.sequence_length, self.hparams.cnn,
                                   self.hparams.freeze_layers,
-                                  self.hparams.dropout, device=self.device)
+                                  self.hparams.dropout)
 
         self.criterion = torch.nn.CrossEntropyLoss()
 
-        self.accuracy = pl.metrics.Accuracy()
+        self.train_accuracy = torchmetrics.Accuracy(task="multiclass", num_classes=NUM_CLASSES)
+        self.val_accuracy = torchmetrics.Accuracy(task="multiclass", num_classes=NUM_CLASSES)
+        self.train_f1 = torchmetrics.F1Score(task="multiclass", num_classes=NUM_CLASSES, average="macro")
+        self.val_f1 = torchmetrics.F1Score(task="multiclass", num_classes=NUM_CLASSES, average="macro")
+        self.train_top5 = torchmetrics.Accuracy(task="multiclass", num_classes=NUM_CLASSES, top_k=5)
+        self.val_top5 = torchmetrics.Accuracy(task="multiclass", num_classes=NUM_CLASSES, top_k=5)
 
     def forward(self, x):
         return self.model(x)
@@ -48,26 +54,23 @@ class Module(pl.LightningModule):
         x, y = batch
         z = self.model(x)
         loss = self.criterion(z, y)
-        self.log('train_loss', loss)
-        self.log('train_accuracy', self.accuracy(z, y))
+        self.log('train_loss', loss, prog_bar=True)
+        self.log('train_accuracy', self.train_accuracy(z, y), prog_bar=True, on_epoch=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
         z = self.model(x)
         loss = self.criterion(z, y)
-        self.log('val_loss', loss)
-        self.log('val_accuracy', self.accuracy(z, y))
+        self.log('val_loss', loss, prog_bar=True)
+        self.log('val_accuracy', self.val_accuracy(z, y), prog_bar=True)
         return loss
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate,
                                      weight_decay=self.hparams.weight_decay)
-        return {
-            'optimizer': optimizer,
-            'lr_scheduler': StepLR(optimizer, step_size=self.hparams.lr_step_size, gamma=0.1),
-            'monitor': 'val_accuracy'
-        }
+        scheduler = StepLR(optimizer, step_size=self.hparams.lr_step_size, gamma=0.1)
+        return [optimizer], [{"scheduler": scheduler, "monitor": "val_accuracy"}]
 
     @staticmethod
     def add_model_specific_args(parent_parser):
