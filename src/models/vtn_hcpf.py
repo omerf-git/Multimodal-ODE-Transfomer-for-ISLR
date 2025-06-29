@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from .common import FeatureExtractor, LinearClassifier, SelfAttention
+from .common import FeatureExtractor, LinearClassifier
 
 
 class MMTensorNorm(nn.Module):
@@ -22,19 +22,37 @@ class VTNHCPF(nn.Module):
         super().__init__()
 
         self.sequence_length = sequence_length
-        self.embed_size = embed_size
         self.num_classes = num_classes
+        
+        # Transformer parameters
+        d_model = 1024
+        n_heads = 8
+        num_layers = 4
+        dim_feedforward = 2048
+        transformer_dropout = 0.1  # You can adjust this
 
-        self.feature_extractor = FeatureExtractor(cnn, embed_size, freeze_layers)
+        self.feature_extractor = FeatureExtractor(cnn, 512, freeze_layers)  # Keep original embed_size for feature extractor
 
-        num_attn_features = 2 * embed_size
+        # Project to transformer dimension
+        input_features = 106 + 2 * 512  # pose_clip + 2 * embed_size
         self.norm = MMTensorNorm(-1)
-        self.bottle_mm = nn.Linear(106 + num_attn_features, num_attn_features)
+        self.bottle_mm = nn.Linear(input_features, d_model)
 
-        self.self_attention_decoder = SelfAttention(num_attn_features, num_attn_features,
-                                                    [num_heads] * num_layers,
-                                                    self.sequence_length, layer_norm=True)
-        self.classifier = LinearClassifier(num_attn_features, num_classes, dropout)
+        # Standard Transformer Encoder
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=n_heads,
+            dim_feedforward=dim_feedforward,
+            dropout=transformer_dropout,
+            activation='relu',
+            batch_first=True
+        )
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer, 
+            num_layers=num_layers
+        )
+        
+        self.classifier = nn.Linear(d_model, num_classes)
 
     def forward(self, mm_clip):
         """Extract the image feature vectors."""
@@ -52,7 +70,8 @@ class VTNHCPF(nn.Module):
         zp = self.norm(zp)
         zp = torch.nn.functional.relu(self.bottle_mm(zp), inplace=False)
 
-        zp = self.self_attention_decoder(zp)
+        # Apply transformer encoder
+        zp = self.transformer_encoder(zp)
 
         y = self.classifier(zp)
 

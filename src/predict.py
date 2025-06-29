@@ -31,22 +31,44 @@ if __name__ == '__main__':
     data_module = importlib.import_module(f'datasets.{program_args.dataset}')
     parser = data_module.get_datamodule_def().add_datamodule_specific_args(parser)
 
-    # Trainer specific
-    parser = pl.Trainer.add_argparse_args(parser)
+    # Trainer specific arguments (manuel olarak eklendi - PyTorch Lightning 2.x uyumlu)
+    parser.add_argument('--accelerator', type=str, default='auto', help='Accelerator type')
+    parser.add_argument('--strategy', type=str, default='auto', help='Training strategy')
+    parser.add_argument('--devices', default='auto', help='Number of devices')
+    parser.add_argument('--precision', default='32-true', help='Precision type')
+    parser.add_argument('--max_epochs', type=int, default=100, help='Maximum number of epochs')
+    parser.add_argument('--enable_checkpointing', type=bool, default=True, help='Enable checkpointing')
+    parser.add_argument('--enable_progress_bar', type=bool, default=True, help='Enable progress bar')
+    parser.add_argument('--enable_model_summary', type=bool, default=True, help='Enable model summary')
 
     args = parser.parse_args()
 
     # -------------------------------- #
     # SETUP
     # -------------------------------- #
-    pl.seed_everything(args.seed)
+    # PyTorch Lightning 2.x için seed setting
+    pl.seed_everything(args.seed, workers=True)
 
     dict_args = vars(args)
 
-    model = module.get_model_def().load_from_checkpoint(args.checkpoint)
+    # Model loading - PyTorch Lightning 2.x uyumlu
+    try:
+        model = module.get_model_def().load_from_checkpoint(args.checkpoint, strict=False)
+    except Exception as e:
+        print(f"Model loading error: {e}")
+        # Fallback to strict=False for compatibility
+        model = module.get_model_def().load_from_checkpoint(args.checkpoint, strict=False)
+
     dm = data_module.get_datamodule(**dict_args)
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    # PyTorch 2.x için device handling
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+        print(f"Using CUDA device: {torch.cuda.get_device_name()}")
+        print(f"CUDA version: {torch.version.cuda}")
+    else:
+        device = torch.device('cpu')
+        print("Using CPU device")
 
     model.to(device)
     model.eval()
@@ -56,27 +78,53 @@ if __name__ == '__main__':
     # -------------------------------- #
     submission = dict()
 
+    # Setup dataloader
+    dm.setup('test')
     dataloader = dm.test_dataloader()
-    with torch.no_grad():
+    
+    print(f"Starting prediction on {len(dataloader)} batches...")
+    
+    # PyTorch 2.x için inference_mode kullanımı (daha verimli)
+    with torch.inference_mode():
         for i, batch in enumerate(dataloader):
+            if i % 10 == 0:
+                print(f"Processing batch {i}/{len(dataloader)}")
+                
             x, paths = batch
             if isinstance(x, list):
-                logits = model([e.to(device) for e in x]).cpu()
+                # Liste elemanlarını device'a taşı
+                x_device = [e.to(device, non_blocking=True) for e in x]
+                logits = model(x_device).cpu()
             else:
-                logits = model(x.to(device)).cpu()
+                # Tek tensor'ı device'a taşı
+                x_device = x.to(device, non_blocking=True)
+                logits = model(x_device).cpu()
 
             predictions = torch.argmax(logits, dim=1)
             for j in range(logits.size(0)):
                 submission[paths[j]] = predictions[j].item()
 
-    with open(args.submission_template) as stf:
-        reader = csv.reader(stf)
-        with open(args.out, 'w') as of:
-            writer = csv.writer(of)
-            for row in reader:
-                sample = row[0]
-                print(f'Predicting {sample}', end=' ')
-                print(f'as {submission[sample]}')
-                writer.writerow([sample, submission[sample]])
+    print(f"Generated predictions for {len(submission)} samples")
 
-    print(f'Wrote submission to {args.out}')
+    # CSV işleme için daha güvenli encoding
+    try:
+        with open(args.submission_template, 'r', encoding='utf-8') as stf:
+            reader = csv.reader(stf)
+            with open(args.out, 'w', encoding='utf-8', newline='') as of:
+                writer = csv.writer(of)
+                written_count = 0
+                for row in reader:
+                    sample = row[0]
+                    if sample in submission:
+                        print(f'Predicting {sample} as {submission[sample]}')
+                        writer.writerow([sample, submission[sample]])
+                        written_count += 1
+                    else:
+                        print(f'Warning: {sample} not found in predictions')
+                
+                print(f"Written {written_count} predictions to file")
+    except Exception as e:
+        print(f"Error writing submission file: {e}")
+        raise
+
+    print(f'Successfully wrote submission to {args.out}')

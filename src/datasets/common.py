@@ -19,14 +19,19 @@ def collect_samples(has_labels, root_path, job_path, sequence_length, temporal_s
             if frame_end > num_frames:
                 frame_end = num_frames
             frame_indices = list(range(frame_start, frame_end, temporal_stride))
-            while len(frame_indices) < sequence_length:
-                # Pad
-                frame_indices.append(frame_indices[-1])
-            samples.append({
-                'path': video_file,
-                'label': None,
-                'frames': frame_indices
-            })
+            print(f"Collecting {len(frame_indices)} frames from {video_file} for sequence length {sequence_length} ")
+            if len(frame_indices) > 5:
+                while len(frame_indices) < sequence_length:
+                    # Pad
+                    frame_indices.append(frame_indices[-1])
+                samples.append({
+                    'path': video_file,
+                    'label': None,
+                    'frames': frame_indices
+                })
+            else:
+                print(f"Warning: Not enough frames in {video_file} for sequence length {sequence_length}. Skipping.")
+            
         return samples
     else:
         with open(label_file_path) as label_file:

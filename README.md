@@ -197,6 +197,9 @@ python -m predict --log_dir $LOG_DIR --model $MODEL --dataset $DATASET --num_wor
     --checkpoint=$CHECKPOINT_PATH --submission_template $PREDICTION_TEMPLATE --out predictions.csv \
     --batch_size 4
 ```
+python -m predict --log_dir /home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/test_logs/ --model VTN_HCPF --dataset handcrop_poseflow --num_workers 4 --data_dir /home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/data/mp4 --sequence_length 16 --temporal_stride 2 --learning_rate 1e-4 --cnn rn34 --num_layers 4 --num_heads 8 --max_epochs 1 --checkpoint=/home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/logs/VTN_HCPF/version_22/checkpoints/epoch=18-step=16720.ckpt --submission_template /home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/predictions_test_template.csv --out predictions.csv --batch_size 4
+ 
+
 
 for the `$MODEL` and `$DATASET` of your choice.
 Alternatively, you can use one of the pre-trained models provided in the [Releases section](https://github.com/m-decoster/ChaLearn-2021-LAP/releases)
