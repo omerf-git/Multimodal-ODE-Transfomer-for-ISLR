@@ -107,6 +107,10 @@ dict_args = vars(args)
 
 # Model ve DataModule, kendi init metotlarında **dict_args alabilir,
 # çünkü genellikle bilinmeyen argümanları görmezden gelecek şekilde yazılırlar.
+# try:
+#     model = module.get_model_def().load_from_checkpoint("/home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/logs/VTN_HCPF/version_40/checkpoints/epoch=15-step=14080.ckpt", strict=False)
+# except Exception as e:
+# print(f"Model loading error: {e}")
 model = module.get_model(**dict_args)
 dm = data_module.get_datamodule(**dict_args)
 

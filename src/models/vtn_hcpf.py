@@ -17,7 +17,7 @@ class MMTensorNorm(nn.Module):
 
 
 class VTNHCPF(nn.Module):
-    def __init__(self, num_classes=226, num_heads=4, num_layers=2, embed_size=512, sequence_length=16, cnn='rn34',
+    def __init__(self, num_classes=226, num_heads=8, num_layers=2, embed_size=512, sequence_length=16, cnn='rn34',
                  freeze_layers=0, dropout=0, **kwargs):
         super().__init__()
 
@@ -27,7 +27,7 @@ class VTNHCPF(nn.Module):
         # Transformer parameters
         d_model = 1024
         n_heads = 8
-        num_layers = 4
+        num_layers = 2
         dim_feedforward = 2048
         transformer_dropout = 0.1  # You can adjust this
 
