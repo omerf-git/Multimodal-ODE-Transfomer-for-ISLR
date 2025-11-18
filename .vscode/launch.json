@@ -1,0 +1,21 @@
+{
+    // Olası öznitelikler hakkında bilgi edinmek için IntelliSense kullanın.
+    // Mevcut özniteliklerin açıklamalarını görüntülemek için üzerine gelin.
+    // Daha fazla bilgi için şu adresi ziyaret edin: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Hata Ayıklayıcısı: Geçerli Dosya",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/run_experiment.py",
+            "args": [
+                
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "python": "/home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP-ODE/venv/bin/python3",
+            "cwd": "${workspaceFolder}/src"
+        }
+    ]
+}

@@ -2,3 +2,5 @@ pretrained_models/*
 data/*
 venv/*
 logs/*
+src/log*
+test_logs/*
