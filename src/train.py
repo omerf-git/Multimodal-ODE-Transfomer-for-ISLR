@@ -31,7 +31,7 @@ from models import module
 torch.autograd.set_detect_anomaly(True)
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
-torch.use_deterministic_algorithms(True)  # nondeterministik op kullanılırsa hata fırlatır
+torch.use_deterministic_algorithms(True)  # throws an error if a non-deterministic op is used
 # Disable TF32 (reduces numerical differences)
 torch.backends.cuda.matmul.allow_tf32 = False
 torch.backends.cudnn.allow_tf32 = False

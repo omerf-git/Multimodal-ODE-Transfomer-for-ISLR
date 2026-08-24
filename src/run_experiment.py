@@ -5,15 +5,15 @@ from pathlib import Path
 
 def parse_config(config_path: Path) -> dict:
     """
-    Basit bir .sh yapılandırma dosyasını ayrıştırır ve bir sözlük döndürür.
-    'KEY="VALUE"' veya 'KEY=VALUE' formatını destekler.
+    Parses a simple .sh configuration file and returns a dictionary.
+    Supports 'KEY="VALUE"' or 'KEY=VALUE' format.
     """
     if not config_path.is_file():
-        print(f"Hata: Yapılandırma dosyası bulunamadı: {config_path}")
+        print(f"Error: Configuration file not found: {config_path}")
         sys.exit(1)
 
     config = {}
-    # Değişken atamalarını bulmak için regex: KEY=VALUE veya KEY="VALUE"
+    # Regex to find variable assignments: KEY=VALUE or KEY="VALUE"
     pattern = re.compile(r'^\s*([\w_]+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s#]+))')
 
     with open(config_path, 'r') as f:
@@ -25,56 +25,56 @@ def parse_config(config_path: Path) -> dict:
             match = pattern.match(line)
             if match:
                 key = match.group(1)
-                # Eşleşen değeri bul (tırnaklı veya tırnaksız)
+                # Find matched value (with or without quotes)
                 value = next((g for g in match.groups()[1:] if g is not None), None)
                 config[key] = value
     return config
 
 def main():
     """
-    Yapılandırmayı okur ve eğitim betiğini çalıştırır.
+    Reads configuration and runs the training script.
     """
-    # Betiğin bulunduğu dizini al
+    # Get script directory
     base_dir = Path(__file__).parent
     config_path = base_dir / 'config.sh'
 
-    # 1. Yapılandırmayı ayrıştır
+    # 1. Parse configuration
     config = parse_config(config_path)
 
-    # 2. Komut satırı argümanlarını oluştur
-    # Temel komut (src dizininden çalıştırıldığını varsayarak)
+    # 2. Build command line arguments
+    # Base command (assuming run from src directory)
     command = ['python', '-m', 'train']
 
-    # Yapılandırmadaki her bir anahtar/değer çifti için argüman ekle
+    # Add arguments for each key/value pair in config
     for key, value in config.items():
-        # NORM_FIRST için özel durum yönetimi
+        # Special case handling for NORM_FIRST
         if key == 'NORM_FIRST':
-            # Değer 'False' (string olarak) ise --no-norm-first bayrağını ekle
+            # Add --no-norm-first flag if value is 'False'
             if str(value).lower() == 'false':
                 command.append('--no-norm-first')
-            # Değer 'True' ise hiçbir şey ekleme (varsayılan davranış)
+            # Do nothing if 'True' (default behavior)
             continue
 
-        # Diğer tüm parametreleri ekle
+        # Add all other parameters
         arg_name = f'--{key.lower()}'
         command.append(arg_name)
         command.append(str(value))
 
-    # Oluşturulan komutu ekrana yazdır
-    print("Çalıştırılan Komut:")
-    # Daha iyi okunabilirlik için komutu birleştirip yazdır
+    # Print constructed command
+    print("Executed Command:")
+    # Print joined command for readability
     print(' '.join(command))
     print("-----------------------------------------------------")
 
-    # 3. Komutu çalıştır
+    # 3. Run command
     try:
-        # subprocess.run, komut tamamlanana kadar bekler
+        # subprocess.run waits until command completes
         subprocess.run(command, check=True)
     except subprocess.CalledProcessError as e:
-        print(f"Eğitim sırasında bir hata oluştu. Çıkış kodu: {e.returncode}")
+        print(f"An error occurred during training. Exit code: {e.returncode}")
         sys.exit(e.returncode)
     except FileNotFoundError:
-        print("Hata: 'python' komutu bulunamadı. Lütfen Python'un kurulu ve PATH'de olduğundan emin olun.")
+        print("Error: 'python' command not found. Please ensure Python is installed and in your PATH.")
         sys.exit(1)
 
 if __name__ == '__main__':

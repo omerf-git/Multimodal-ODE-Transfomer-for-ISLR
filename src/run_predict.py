@@ -7,10 +7,10 @@ import time
 import csv
 from collections import Counter, defaultdict
 
-from prediction_analiz import calculate_accuracy
+from prediction_analysis import calculate_accuracy
 
-# predict.py'nin kabul ettiği argümanların bir listesini oluşturun.
-# Bu liste predict.py dosyasındaki parser.add_argument çağrılarından alınmalıdır.
+# Create a list of arguments accepted by predict.py
+# This list should match parser.add_argument calls in predict.py
 PREDICT_ARGS = {
     'log_dir', 'seed', 'dataset', 'checkpoint', 'submission_template', 'out',
     'learning_rate', 'num_heads', 'num_layers', 'embed_size', 'cnn',
@@ -25,11 +25,11 @@ PREDICT_ARGS = {
 
 def _read_id_label_csv(path: str):
     """
-    CSV'den {id: label} okur.
-    Beklenen: en az iki kolon (id, label). Header varsa otomatik atlar.
+    Reads {id: label} from CSV.
+    Expected: at least two columns (id, label). Automatically skips header if present.
     """
     if not os.path.exists(path):
-        raise FileNotFoundError(f"CSV bulunamadı: {path}")
+        raise FileNotFoundError(f"CSV not found: {path}")
 
     out = {}
     with open(path, "r", newline="", encoding="utf-8") as f:
@@ -39,10 +39,10 @@ def _read_id_label_csv(path: str):
     if not rows:
         return out
 
-    # Header sezgisel kontrol: ikinci kolon sayısal değilse vs. (robust tutmak için)
+    # Header heuristic check: e.g. if second column is not numeric (to keep it robust)
     start_idx = 0
     if len(rows[0]) >= 2:
-        # "label", "class", "target" gibi kelimeler içeriyorsa header say
+        # If it contains words like "label", "class", "target", count as header
         header_join = ",".join([c.strip().lower() for c in rows[0]])
         if any(k in header_join for k in ("label", "class", "target", "id", "sample")):
             start_idx = 1
@@ -60,10 +60,10 @@ def _read_id_label_csv(path: str):
 
 def _macro_f1_score(y_true, y_pred):
     """
-    sklearn yoksa macro-F1'ı manuel hesaplar.
-    y_true/y_pred: aynı uzunlukta label listeleri (string olabilir).
+    Calculates macro-F1 manually if sklearn is not available.
+    y_true/y_pred: label lists of same length (can be string).
     """
-    # Sınıf kümesi: true union pred
+    # Class set: true union pred
     classes = sorted(set(y_true) | set(y_pred))
     if not classes:
         return 0.0
@@ -91,7 +91,7 @@ def _macro_f1_score(y_true, y_pred):
 
 def calculate_f1_macro(true_labels_csv: str, predicted_labels_csv: str) -> float:
     """
-    true/pred CSV'leri okuyup ortak id'ler üzerinde macro-F1 döner.
+    Reads true/pred CSVs and returns macro-F1 on common ids.
     """
     true_map = _read_id_label_csv(true_labels_csv)
     pred_map = _read_id_label_csv(predicted_labels_csv)
@@ -99,13 +99,13 @@ def calculate_f1_macro(true_labels_csv: str, predicted_labels_csv: str) -> float
     common_ids = [sid for sid in true_map.keys() if sid in pred_map]
     if not common_ids:
         raise ValueError(
-            f"Ortak örnek id bulunamadı. true: {len(true_map)} pred: {len(pred_map)}"
+            f"No common sample ids found. true: {len(true_map)} pred: {len(pred_map)}"
         )
 
     y_true = [true_map[sid] for sid in common_ids]
     y_pred = [pred_map[sid] for sid in common_ids]
 
-    # sklearn varsa kullan; yoksa manuel
+    # use sklearn if available; else manual
     try:
         from sklearn.metrics import f1_score
         return float(f1_score(y_true, y_pred, average="macro"))
@@ -115,7 +115,7 @@ def calculate_f1_macro(true_labels_csv: str, predicted_labels_csv: str) -> float
 
 def count_predictions(predicted_labels_csv: str) -> int:
     """
-    predictions.csv içindeki örnek sayısını döndürür (id->label map boyutu).
+    Returns number of samples in predictions.csv (size of id->label map).
     """
     pred_map = _read_id_label_csv(predicted_labels_csv)
     return len(pred_map)
@@ -123,90 +123,89 @@ def count_predictions(predicted_labels_csv: str) -> int:
 
 def run_from_config(config_path, checkpoint_path, out_path):
     """
-    Yapılandırmayı bir YAML dosyasından yükler ve predict.py betiğini çalıştırır.
-    Dönüş: elapsed_seconds (float)
+    Loads config from a YAML file and runs the predict.py script.
+    Returns: elapsed_seconds (float)
     """
     try:
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
     except FileNotFoundError:
-        print(f"Hata: Yapılandırma dosyası bulunamadı: {config_path}")
+        print(f"Error: Configuration file not found: {config_path}")
         sys.exit(1)
     except yaml.YAMLError as e:
-        print(f"Hata: YAML dosyası ayrıştırılırken hata oluştu: {e}")
+        print(f"Error: Failed to parse YAML file: {e}")
         sys.exit(1)
 
-    # Komutu oluşturmaya başla
+    # Start building command
     command = [sys.executable, '-m', 'predict']
 
-    # Yapılandırma dosyasındaki argümanları, sadece predict.py'nin tanıgrounds ekle
+    # Add arguments from configuration file that predict.py recognizes
     for key, value in config.items():
-        if key in PREDICT_ARGS:  # Sadece bilinen argümanları ekle
+        if key in PREDICT_ARGS:  # Only add known arguments
             if key == 'norm_first':
-                # Değer 'False' (string olarak) ise --no-norm-first bayrağını ekle
+                # Add --no-norm-first flag if value is 'False'
                 if str(value).lower() == 'false':
                     command.append('--no-norm-first')
-                # Değer 'True' ise hiçbir şey ekleme (varsayılan davranış)
+                # Do nothing if 'True' (default behavior)
                 continue
             command.append(f'--{key}')
             command.append(str(value))
 
-    # Gömülü parametreleri ekle
+    # Add embedded parameters
     command.extend([
-        '--submission_template', '/home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/predictions_test_template.csv',
+        '--submission_template', PREDICTIONS_TEST_TEMPLATE,
         '--out', out_path,
         '--checkpoint', checkpoint_path
     ])
 
-    print("Aşağıdaki komut çalıştırılıyor:")
+    print("Running the following command:")
     print(' '.join(command))
 
-    # Komutu çalıştır
+    # Execute command
     try:
         t0 = time.perf_counter()
         result = subprocess.run(command, check=True, capture_output=True, text=True)
         t1 = time.perf_counter()
         elapsed = t1 - t0
-        print("Betiğin çıktısı:\n", result.stdout)
+        print("Script output:\n", result.stdout)
         return elapsed
     except subprocess.CalledProcessError as e:
-        print(f"Betiği çalıştırırken bir hata oluştu: {e}")
-        print(f"Hata Çıktısı (stderr):\n{e.stderr}")
+        print(f"An error occurred while running the script: {e}")
+        print(f"Error Output (stderr):\n{e.stderr}")
         sys.exit(1)
     except FileNotFoundError:
-        print("Hata: 'python -m predict' komutu bulunamadı. Ortamınızın doğru ayarlandığından emin olun.")
+        print("Error: 'python -m predict' command not found. Ensure your environment is properly configured.")
         sys.exit(1)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='YAML yapılandırma dosyasından tahmin betiğini çalıştırır.')
+    from config_paths import TRUE_LABELS_FILE, PREDICTED_LABELS_FILE, LOG_DIR, TEST_LOGS_DIR, PREDICTIONS_TEST_TEMPLATE
+
+    parser = argparse.ArgumentParser(description='Runs the prediction script from a YAML configuration file.')
     parser.add_argument(
         '--version',
         type=str,
         default='0',
-        help='Çalıştırma için kullanılacak yapılandırma YAML dosyasının yolu.'
+        help='Version of the configuration YAML file to use for running.'
     )
 
-    true_labels_file = "/home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/predictions/RGB_TEST_VTN_HCPF.csv"  # Doğru etiketler
-    predicted_labels_file = "/home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/src/predictions.csv"  # Tahmin etiketler
-
     args = parser.parse_args()
-    config_file = f'/home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/logs/run_methods/VTN_HCPF/version_{args.version}/hparams.yaml'
-    checkpoint_path = f'/home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/logs/run_methods/VTN_HCPF/version_{args.version}/checkpoints/min-val-loss.ckpt'
-    checkpoint_path_last = f'/home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/logs/run_methods/VTN_HCPF/version_{args.version}/checkpoints/last.ckpt'
+    config_file = os.path.join(LOG_DIR, f'VTN_HCPF/version_{args.version}/hparams.yaml')
+    checkpoint_path = os.path.join(LOG_DIR, f'VTN_HCPF/version_{args.version}/checkpoints/min-val-loss.ckpt')
+    checkpoint_path_last = os.path.join(LOG_DIR, f'VTN_HCPF/version_{args.version}/checkpoints/last.ckpt')
 
     # 1) min-val-loss
-    elapsed_min = run_from_config(config_file, checkpoint_path, predicted_labels_file)
-    accuracy_min_val_loss = calculate_accuracy(true_labels_file, predicted_labels_file)
-    f1_min_val_loss = calculate_f1_macro(true_labels_file, predicted_labels_file)
-    n_min = count_predictions(predicted_labels_file)
+    elapsed_min = run_from_config(config_file, checkpoint_path, PREDICTED_LABELS_FILE)
+    accuracy_min_val_loss = calculate_accuracy(TRUE_LABELS_FILE, PREDICTED_LABELS_FILE)
+    f1_min_val_loss = calculate_f1_macro(TRUE_LABELS_FILE, PREDICTED_LABELS_FILE)
+    n_min = count_predictions(PREDICTED_LABELS_FILE)
     avg_inf_min = (elapsed_min / n_min) if n_min > 0 else None
 
     # 2) last
-    elapsed_last = run_from_config(config_file, checkpoint_path_last, predicted_labels_file)
-    accuracy_last = calculate_accuracy(true_labels_file, predicted_labels_file)
-    f1_last = calculate_f1_macro(true_labels_file, predicted_labels_file)
-    n_last = count_predictions(predicted_labels_file)
+    elapsed_last = run_from_config(config_file, checkpoint_path_last, PREDICTED_LABELS_FILE)
+    accuracy_last = calculate_accuracy(TRUE_LABELS_FILE, PREDICTED_LABELS_FILE)
+    f1_last = calculate_f1_macro(TRUE_LABELS_FILE, PREDICTED_LABELS_FILE)
+    n_last = count_predictions(PREDICTED_LABELS_FILE)
     avg_inf_last = (elapsed_last / n_last) if n_last > 0 else None
 
     print("\n")
@@ -222,19 +221,18 @@ if __name__ == '__main__':
     if avg_inf_last is not None:
         print(f"Avg inference (s/sample) (last checkpoint): {avg_inf_last:.6f}")
 
-    # --- LOGLAMA BÖLÜMÜ (YAML) ---
-    log_dir = "/home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/test_logs-f1"
-    os.makedirs(log_dir, exist_ok=True)
-    log_file_path = os.path.join(log_dir, f"test_log_version_{args.version}.yaml")
+    # --- LOGGING SECTION (YAML) ---
+    os.makedirs(TEST_LOGS_DIR, exist_ok=True)
+    log_file_path = os.path.join(TEST_LOGS_DIR, f"test_log_version_{args.version}.yaml")
 
     try:
         with open(config_file, 'r') as f:
             config_params = yaml.safe_load(f)
     except FileNotFoundError:
-        print(f"Loglama için hparams.yaml dosyası bulunamadı: {config_file}")
+        print(f"hparams.yaml not found for logging: {config_file}")
         config_params = {}
 
-    # YAML dosyası için veri yapısını oluştur
+    # Create data structure for YAML file
     log_data = {
         'test_info': {
             'version': args.version
@@ -255,18 +253,18 @@ if __name__ == '__main__':
         }
     }
 
-    # hparams.yaml'dan gelen parametreleri ekle
+    # Add parameters from hparams.yaml
     for key, value in config_params.items():
         if key in PREDICT_ARGS:
             log_data['parameters'][key] = value
 
-    # Koda gömülü parametreleri de ekle
-    log_data['parameters']['submission_template'] = '/home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/predictions_test_template.csv'
-    log_data['parameters']['out'] = predicted_labels_file
+    # Add embedded parameters
+    log_data['parameters']['submission_template'] = PREDICTIONS_TEST_TEMPLATE
+    log_data['parameters']['out'] = PREDICTED_LABELS_FILE
 
-    # Veri yapısını YAML dosyasına yaz
+    # Write data structure to YAML file
     with open(log_file_path, 'w') as log_file:
         yaml.dump(log_data, log_file, default_flow_style=False, sort_keys=False, indent=4)
 
     print("\n-----------------------------------------------------")
-    print(f"Test sonuçları ve parametreler şuraya kaydedildi: {log_file_path}")
+    print(f"Test results and parameters saved to: {log_file_path}")

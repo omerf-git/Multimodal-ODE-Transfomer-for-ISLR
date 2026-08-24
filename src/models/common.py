@@ -18,16 +18,16 @@ class FeatureExtractor(nn.Module):
         """Initialize the feature extractor with given CNN backbone and desired feature size."""
         super().__init__()
         
-        ### DÜZELTME 1: Çıkış boyutu (feature dim) için bir değişken tanımla ###
-        # Bu değişkeni, seçilen modele göre dinamik olarak dolduracağız.
+        ### FIX 1: Define a variable for feature dim ###
+        # We will dynamically populate this based on the selected model.
         local_feature_dim = 0
 
         if cnn == 'rn18':
-            # 'weights' parametresini kullanmak en güncel yöntemdir
+            # Using 'weights' parameter is the most up-to-date method
             model = resnet18(weights=ResNet18_Weights.DEFAULT)
-            # ResNet için omurga, son 2 katman (avgpool, fc) hariç her şeydir.
+            # For ResNet, the backbone is everything except the last 2 layers (avgpool, fc)
             self.backbone = nn.Sequential(*list(model.children())[:-2])
-            local_feature_dim = 512  # ResNet18/34 çıkışı 512'dir
+            local_feature_dim = 512  # ResNet18/34 output is 512
         
         elif cnn == 'rn34':
             model = resnet34(weights=ResNet34_Weights.DEFAULT)
@@ -38,23 +38,23 @@ class FeatureExtractor(nn.Module):
             print("Using ConvNeXt Tiny as backbone.")
             model = convnext_tiny(weights=ConvNeXt_Tiny_Weights.DEFAULT)
             
-            ### DÜZELTME 2: ConvNeXt için omurgayı doğru seçme ###
-            # ConvNeXt'in omurgası 'features' adlı modülüdür.
-            # Bu modül zaten katmanları (stage'leri) içeren bir nn.Sequential'dır.
+            ### FIX 2: Correctly select backbone for ConvNeXt ###
+            # The backbone of ConvNeXt is its 'features' module.
+            # This module is already an nn.Sequential containing the stages.
             self.backbone = model.features
-            local_feature_dim = 768  # ConvNeXt-Tiny çıkışı 768'dir
+            local_feature_dim = 768  # ConvNeXt-Tiny output is 768
         
         else:
             raise ValueError(f'Unknown value for `cnn`: {cnn}')
 
-        ### DÜZELTME 3: Katman dondurma (Artık tutarlı çalışıyor) ###
-        # Artık self.backbone[i], ResNet için [conv1, bn1, ..., layer1, ...]
-        # veya ConvNeXt için [stage0, stage1, stage2, ...] anlamına geliyor.
-        # Bu yapı, katmanları mantıksal bloklar halinde dondurmanıza olanak tanır.
+        ### FIX 3: Layer Freezing ###
+        # self.backbone[i] now refers to [conv1, bn1, ..., layer1, ...] for ResNet
+        # or [stage0, stage1, stage2, ...] for ConvNeXt.
+        # This structure allows freezing layers in logical blocks.
         if freeze_layers > 0:
             print(f"Freezing first {freeze_layers} layer blocks of the backbone.")
-            # self.backbone'un kendisi zaten bir Sequential olduğu için 
-            # doğrudan onun alt elemanlarına (children) erişebiliriz.
+            # Since self.backbone is already a Sequential,
+            # we can directly access its children.
             layer_index = 0
             for child in self.backbone.children():
                 if layer_index < freeze_layers:
@@ -63,13 +63,13 @@ class FeatureExtractor(nn.Module):
                     print(f"Froze backbone block {layer_index}.")
                 layer_index += 1
         
-        ### DÜZELTME 4: Pointwise Conv'u dinamik boyuta göre ayarlama ###
-        # Artık local_feature_dim (512 veya 768) ne olursa olsun
-        # embed_size'a (örn. 512) dönüştürebiliriz.
+        ### FIX 4: Adjust Pointwise Conv based on dynamic dimension ###
+        # We can now map local_feature_dim (512 or 768)
+        # to the desired embed_size (e.g., 512).
         if embed_size != local_feature_dim:
             self.pointwise_conv = nn.Conv2d(local_feature_dim, embed_size, 1)
         else:
-            self.pointwise_conv = nn.Identity() # Boyutlar aynıysa hiçbir şey yapma
+            self.pointwise_conv = nn.Identity() # Do nothing if dimensions match
 
     def forward(self, rgb_clip):
         """Extract features from the RGB images."""
@@ -77,22 +77,22 @@ class FeatureExtractor(nn.Module):
         rgb_clip = rgb_clip.view(b * t, c, h, w)
 
         features = self.backbone(rgb_clip)
-        # ResNet'ten gelen: (b*t, 512, H', W')
-        # ConvNeXt'ten gelen: (b*t, 768, H', W')
+        # From ResNet: (b*t, 512, H', W')
+        # From ConvNeXt: (b*t, 768, H', W')
 
         features = self.pointwise_conv(features)
-        # Çıktı her zaman: (b*t, embed_size, H', W')
+        # Output is always: (b*t, embed_size, H', W')
 
-        ### İYİLEŞTİRME: .squeeze() yerine .flatten() kullanmak daha güvenlidir ###
-        # .squeeze(), batch boyutu 1 olduğunda istenmeyen hatalara yol açabilir.
-        # .flatten(start_dim=1) ise (b*t, embed_size, 1, 1) tensorünü 
-        # güvenli bir şekilde (b*t, embed_size) haline getirir.
+        ### ENHANCEMENT: Using .flatten() is safer than .squeeze() ###
+        # .squeeze() can cause unintended errors when batch size is 1.
+        # .flatten(start_dim=1) safely converts the (b*t, embed_size, 1, 1) tensor 
+        # into (b*t, embed_size).
         features = F.adaptive_avg_pool2d(features, (1, 1))
         features = features.flatten(start_dim=1)
 
         # Restore the original dimensions of the tensor.
         features = features.view(b, t, -1)
-        # Son çıktı boyutu: (b, t, embed_size)
+        # Final output size: (b, t, embed_size)
 
         return features
 
@@ -320,5 +320,5 @@ class PositionEncoding(nn.Module):
     def forward(self, x):
         indeces = torch.arange(0, x.size(1)).to(self.enc.weight.device, torch.long)
         encodings = self.enc(indeces)
-        x = x + encodings  # in-place DEĞİL!
+        x = x + encodings  # NOT in-place!
         return x

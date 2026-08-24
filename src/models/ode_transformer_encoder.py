@@ -146,7 +146,7 @@ class ODETransformerEncoder(nn.TransformerEncoder):
 
         # Replace original layer iteration with Runge-Kutta implementation
         x = output
-        # History ilk durumu eklemeden pop yapmayın
+        # Do not pop from history without adding the initial state first
         if self.history is not None:
             self.history.add(x)
         for layer in self.layers:

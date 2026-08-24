@@ -1,28 +1,28 @@
 #!/bin/bash
 
-# Hata durumunda betiği sonlandır
+# Exit script on error
 set -e
 
-# Yapılandırma dosyasının yolu
+# Path to configuration file
 CONFIG_FILE="config.sh"
 
-# Yapılandırma dosyasının varlığını kontrol et
+# Check if configuration file exists
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Hata: Yapılandırma dosyası bulunamadı: $CONFIG_FILE"
+    echo "Error: Configuration file not found: $CONFIG_FILE"
     exit 1
 fi
 
-# Yapılandırma dosyasındaki değişkenleri bu betiğe dahil et
+# Source variables from configuration file
 source "$CONFIG_FILE"
 
-# NORM_FIRST bayrağını yönetmek için bir değişken oluşturalım
+# Manage NORM_FIRST flag
 NORM_FLAG=""
 if [ "$NORM_FIRST" = "False" ] || [ "$NORM_FIRST" = "false" ]; then
     NORM_FLAG="--no-norm-first"
 fi
 
-# train.py'yi çalıştırmak için komutu oluştur
-# Değişkenleri kullanarak argümanları bir araya getiriyoruz.
+# Construct command to run train.py
+# Concatenating arguments using variables
 COMMAND="python -m train \
     --model $MODEL \
     --dataset $DATASET \
@@ -42,10 +42,10 @@ COMMAND="python -m train \
     --encoder_history_type $ENCODER_HISTORY_TYPE \
     $NORM_FLAG"
 
-# Oluşturulan komutu ekrana yazdır
-echo "Çalıştırılan Komut:"
+# Print constructed command
+echo "Executed Command:"
 echo "$COMMAND"
 echo "-----------------------------------------------------"
 
-# Komutu çalıştır
+# Run command
 eval $COMMAND

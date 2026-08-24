@@ -31,7 +31,7 @@ if __name__ == '__main__':
     data_module = importlib.import_module(f'datasets.{program_args.dataset}')
     parser = data_module.get_datamodule_def().add_datamodule_specific_args(parser)
 
-    # Trainer specific arguments (manuel olarak eklendi - PyTorch Lightning 2.x uyumlu)
+    # Trainer specific arguments (manually added for PyTorch Lightning 2.x compatibility)
     parser.add_argument('--accelerator', type=str, default='auto', help='Accelerator type')
     parser.add_argument('--strategy', type=str, default='auto', help='Training strategy')
     parser.add_argument('--devices', default='auto', help='Number of devices')
@@ -46,12 +46,12 @@ if __name__ == '__main__':
     # -------------------------------- #
     # SETUP
     # -------------------------------- #
-    # PyTorch Lightning 2.x için seed setting
+    # Seed setting for PyTorch Lightning 2.x
     pl.seed_everything(args.seed, workers=True)
 
     dict_args = vars(args)
 
-    # Model loading - PyTorch Lightning 2.x uyumlu
+    # Model loading - PyTorch Lightning 2.x compatible
     try:
         model = module.get_model_def().load_from_checkpoint(args.checkpoint, strict=False)
     except Exception as e:
@@ -61,7 +61,7 @@ if __name__ == '__main__':
 
     dm = data_module.get_datamodule(**dict_args)
 
-    # PyTorch 2.x için device handling
+    # Device handling for PyTorch 2.x
     if torch.cuda.is_available():
         device = torch.device('cuda')
         print(f"Using CUDA device: {torch.cuda.get_device_name()}")
@@ -84,7 +84,7 @@ if __name__ == '__main__':
     
     print(f"Starting prediction on {len(dataloader)} batches...")
     
-    # PyTorch 2.x için inference_mode kullanımı (daha verimli)
+    # Use inference_mode for PyTorch 2.x (more efficient)
     with torch.inference_mode():
         for i, batch in enumerate(dataloader):
             if i % 10 == 0:
@@ -92,11 +92,11 @@ if __name__ == '__main__':
                 
             x, paths = batch
             if isinstance(x, list):
-                # Liste elemanlarını device'a taşı
+                # Move list elements to device
                 x_device = [e.to(device, non_blocking=True) for e in x]
                 logits = model(x_device).cpu()
             else:
-                # Tek tensor'ı device'a taşı
+                # Move single tensor to device
                 x_device = x.to(device, non_blocking=True)
                 logits = model(x_device).cpu()
 
@@ -106,7 +106,7 @@ if __name__ == '__main__':
 
     print(f"Generated predictions for {len(submission)} samples")
 
-    # CSV işleme için daha güvenli encoding
+    # Safer encoding for CSV processing
     try:
         with open(args.submission_template, 'r', encoding='utf-8') as stf:
             reader = csv.reader(stf)
