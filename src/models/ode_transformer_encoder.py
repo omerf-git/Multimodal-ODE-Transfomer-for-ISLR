@@ -185,7 +185,8 @@ class ODETransformerEncoder(nn.TransformerEncoder):
                 if self.rk_type == "standard":
                     x = residual + 1/6 * (runge_kutta_list[0] + 2*runge_kutta_list[1] + 2*runge_kutta_list[2] + runge_kutta_list[3])
                 if self.rk_type == "initialization" or self.rk_type == "learnable":
-                    x = residual + self.alpha[0] * runge_kutta_list[0] + self.alpha[1] * runge_kutta_list[1] + self.alpha[2] * runge_kutta_list[2] + self.alpha[3] * runge_kutta_list[3] 
+                    dividor = self.alpha[0] + self.alpha[1] + self.alpha[2] + self.alpha[3]
+                    x = residual + (self.alpha[0] * runge_kutta_list[0] + self.alpha[1] * runge_kutta_list[1] + self.alpha[2] * runge_kutta_list[2] + self.alpha[3] * runge_kutta_list[3]) / dividor
             elif self.calculate_num == 3:
                 # RK3-block
                 x = residual + 1/6 * (runge_kutta_list[0] + 4*runge_kutta_list[1] + runge_kutta_list[2])

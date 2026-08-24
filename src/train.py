@@ -5,7 +5,7 @@ For tuning of the hyperparameters, see tune.py.
 Updated for PyTorch Lightning 2.2.2+ (with fix for add_argparse_args removal)
 """
 
-# Ortam değişkenlerini TORCH/CUDA inisyalizasyonundan önce ver
+# Set environment variables before TORCH/CUDA initialization
 import os
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 os.environ["PYTHONHASHSEED"] = "0"
@@ -20,23 +20,23 @@ from pytorch_lightning.callbacks import (
     LearningRateMonitor,
     TQDMProgressBar,
     DeviceStatsMonitor,
-    ModelCheckpoint,  # <-- eklendi
+    ModelCheckpoint,  # <-- added
 )
 from pytorch_lightning.loggers import TensorBoardLogger
 import torch
 
 from models import module
 
-# Deterministik ayarlar
+# Deterministic settings
 torch.autograd.set_detect_anomaly(True)
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 torch.use_deterministic_algorithms(True)  # nondeterministik op kullanılırsa hata fırlatır
-# TF32 kapat (sayısal farklılıkları azaltır)
+# Disable TF32 (reduces numerical differences)
 torch.backends.cuda.matmul.allow_tf32 = False
 torch.backends.cudnn.allow_tf32 = False
 
-# CUDA memory management için
+# For CUDA memory management
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:512'
 
 if __name__ == '__main__':
@@ -50,7 +50,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, help='Random seed', default=42)
     parser.add_argument('--dataset', type=str, help='Dataset module', required=True)
 
-    # Geçici olarak bilinen argümanları ayıkla
+    # Temporarily parse known arguments
     program_args, _ = parser.parse_known_args()
 
     # Model specific
@@ -60,8 +60,8 @@ if __name__ == '__main__':
     data_module = importlib.import_module(f'datasets.{program_args.dataset}')
     parser = data_module.get_datamodule_def().add_datamodule_specific_args(parser)
 
-    # --- YENİ BÖLÜM: Trainer argümanlarını manuel ekleme ---
-    # pl.Trainer.add_argparse_args kaldırıldığı için temel Trainer argümanlarını elle ekliyoruz.
+    # --- NEW SECTION: Manually adding Trainer arguments ---
+    # Since pl.Trainer.add_argparse_args is removed, we add basic Trainer args manually.
     parser.add_argument('--accelerator', type=str, default='auto', help='Accelerator to use (e.g., "cpu", "gpu", "auto")')
     parser.add_argument('--devices', default=1, help='Number of devices to use (e.g., 1, 8, "auto")')
     parser.add_argument('--max_epochs', type=int, default=100, help='Maximum number of epochs to train for')
@@ -72,11 +72,11 @@ if __name__ == '__main__':
     parser.add_argument('--accumulate_grad_batches', type=int, default=1, help='Accumulates grads every k batches')
     parser.add_argument('--gradient_clip_val', type=float, default=0.0, help='Gradient clipping value')
     parser.add_argument('--profiler', type=str, default=None, help='Profiler to use (e.g., "simple", "advanced")')
-    # İsteğe bağlı bayrak: Trainer(deterministic=...)
+    # Optional flag: Trainer(deterministic=...)
     parser.add_argument('--deterministic', type=lambda x: str(x).lower() in ['1','true','yes'], default=True,
                         help='Force deterministic behavior (default: True)')
     
-    # Eski/kullanılmayan argümanlar
+    # Old/unused arguments
     parser.add_argument('--log_gpu_memory', action='store_true', help='DEPRECATED: Now controlled by DeviceStatsMonitor callback.')
     parser.add_argument('--progress_bar_refresh_rate', type=int, default=1, help='DEPRECATED: Use TQDMProgressBar callback.')
     
@@ -84,12 +84,12 @@ if __name__ == '__main__':
     # -------------------------------- #
     # SETUP
     # -------------------------------- #
-    # Tüm RNG'ler için seed
+    # Seed for all RNGs
     random.seed(args.seed)
     np.random.seed(args.seed)
     pl.seed_everything(args.seed, workers=True)
 
-    # Matmul precision (deterministik/fikst sonuçlar için "highest")
+    # Matmul precision (set to "highest" for deterministic/fixed results)
     if torch.cuda.is_available():
         torch.set_float32_matmul_precision('highest')
 
@@ -101,10 +101,10 @@ if __name__ == '__main__':
 
     # 2. Callback'ler
     checkpoint_cb = ModelCheckpoint(
-        monitor='val_loss',      # en iyi modeli val_loss'a göre seç
+        monitor='val_loss',      # select the best model based on val_loss
         mode='min',
-        save_top_k=1,            # en iyi 1 modeli tut
-        save_last=True,          # son epoch'u da ayrıca kaydetmek isterseniz
+        save_top_k=1,            # keep the best 1 model
+        save_last=True,          # save the last epoch as well if you want
         filename='min-val-loss',
         auto_insert_metric_name=False
     )
@@ -112,7 +112,7 @@ if __name__ == '__main__':
         EarlyStopping(monitor='val_loss', mode='min', verbose=True, patience=7),
         LearningRateMonitor(logging_interval='epoch'),
         TQDMProgressBar(refresh_rate=1),
-        checkpoint_cb,           # <-- eklendi
+        checkpoint_cb,           # <-- added
     ]
 
     # 3. Trainer
@@ -137,12 +137,12 @@ if __name__ == '__main__':
     # -------------------------------- #
     dict_args = vars(args)
 
-    # Model ve DataModule, kendi init metotlarında **dict_args alabilir,
-    # çünkü genellikle bilinmeyen argümanları görmezden gelecek şekilde yazılırlar.
+    # The Model and DataModule can take **dict_args in their init methods,
+    # as they are usually written to ignore unknown arguments.
     # try:
-    #     model = module.get_model_def().load_from_checkpoint("/home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/logs/VTN_HCPF/version_40/checkpoints/epoch=15-step=14080.ckpt", strict=False)
+    #     model = module.get_model_def().load_from_checkpoint("logs/VTN_HCPF/version_X/checkpoints/epoch=Y.ckpt", strict=False)
     # except Exception as e:
-    # print(f"Model loading error: {e}")
+    #     print(f"Model loading error: {e}")
     model = module.get_model(**dict_args)
     dm = data_module.get_datamodule(**dict_args)
 

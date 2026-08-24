@@ -1,0 +1,41 @@
+test_info:
+    version: '2'
+parameters:
+    accelerator: auto
+    batch_size: 8
+    cnn: rn18
+    data_dir: "/home/omer/Masa\xFCst\xFC/tez_calismasi/codebase/ChaLearn-2021-LAP/data/mp4"
+    dataset: handcrop_poseflow
+    devices: 1
+    dropout: 0.2
+    embed_size: 512
+    enc_calculate_num: 1
+    encoder_history_type: none
+    freeze_layers: 0
+    learning_rate: 0.0001
+    log_dir: "/home/omer/Masa\xFCst\xFC/tez_calismasi/codebase/ChaLearn-2021-LAP/logs/run_methods"
+    lr_step_size: 5
+    max_epochs: 100
+    model: VTN_HCPF
+    norm_first: true
+    num_heads: 8
+    num_layers: 4
+    num_workers: 4
+    rk_type: none
+    seed: 42
+    sequence_length: 16
+    temporal_stride: 2
+    weight_decay: 0
+    submission_template: "/home/omer/Masa\xFCst\xFC/tez_calismasi/codebase/ChaLearn-2021-LAP/predictions_test_template.csv"
+    out: "/home/omer/Masa\xFCst\xFC/tez_calismasi/codebase/ChaLearn-2021-LAP/src/predictions.csv"
+results:
+    accuracy_min_val_loss: 0.9249
+    f1_macro_min_val_loss: 0.9227
+    elapsed_seconds_min_val_loss: 56.091987
+    num_samples_min_val_loss: 3740
+    avg_inference_seconds_per_sample_min_val_loss: 0.01499786
+    accuracy_last: 0.9305
+    f1_macro_last: 0.9288
+    elapsed_seconds_last: 55.897095
+    num_samples_last: 3740
+    avg_inference_seconds_per_sample_last: 0.01494575
