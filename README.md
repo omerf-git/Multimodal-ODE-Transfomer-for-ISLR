@@ -1,223 +1,35 @@
-# ChaLearn 2021 LAP
+# ODE-Transformer for Sign Language Recognition
 
-This repository contains the code of my submission to the [ChaLearn 2021 Looking At People: Signer Independent Isolated Sign Language Recognition challenge](http://chalearnlap.cvc.uab.es/challenge/43/description/).
+This repository contains the official PyTorch implementation of the experiments conducted for my thesis named **An Iterative Transformer Framework for Isolated Turkish Sign Language Recognition**. 
 
-| Track | Development Score | Test Score |
-|-------|-------------------|------------|
-| RGB   | 0.9083            | 0.9292     |
-| RGB-D | 0.9167            | 0.9332     |
+This work introduces an **ODE (Ordinary Differential Equation) Transformer** implementation built on top of the framework originally developed for the [ChaLearn 2021 LAP Challenge](https://github.com/m-decoster/ChaLearn-2021-LAP).
 
-This PyTorch code allows you to reproduce my results by training the model
-yourself, or by using the provided pre-trained model weights in the [Releases section](https://github.com/m-decoster/ChaLearn-2021-LAP/releases).
+## 📖 About the Project & Dataset
+This codebase contains the experimental setup and results for a Master's Thesis focusing on **Turkish Sign Language Recognition**. The experiments were exclusively conducted on the **AUTSL (Ankara University Turkish Sign Language)** dataset, which is a large-scale, high-quality dataset containing 226 distinct signs performed by 43 different signers.
 
-If you wish to train the models yourself, I recommend that you download the OpenPose keypoints and pose flow files from the Releases section, and use those
-along with the original MP4 files. This saves you the trouble of extracting them yourself using OpenPose.
+### The Role of the ODE-Transformer
+Sign language is highly continuous and dynamic; meaning standard discrete attention mechanisms (like those in a vanilla Video Transformer Network) may struggle to capture the continuous flow of complex hand and body motions. To address this, we integrated an **ODE-Transformer**:
+- It models the hidden states of the neural network as a continuous-time continuous-depth physical system.
+- By using differential equation solvers (like Runge-Kutta), the network gains a smoother and more robust understanding of temporal dependencies in video frames.
+- As demonstrated in the results below, replacing standard discrete layers with ODE-based attention significantly boosts recognition accuracy on the AUTSL dataset.
 
-The process to reproducing my results is explained below.
+## 📢 Acknowledgements & References
+This codebase is a modified extension of the original repository. 
 
-1. [Set up virtual environment with requirements](#requirements)
-2. [Prepare the dataset folder](#dataset-preparations)
-3. [Download and extract the keypoints and pose flow](#using-prepared-files)
-    1. Alternatively, [extract the keypoints yourself using OpenPose](#reproducing-results-from-scratch)
-4. [Train the model](#training-the-models)
-5. [Perform inference to obtain the predictions](#inference)
+* **Original Repository:** [m-decoster/ChaLearn-2021-LAP](https://github.com/m-decoster/ChaLearn-2021-LAP)
 
-If you use the pre-trained model checkpoints, you can skip step 4.
+If you use this code for your research, please consider citing the thesis and the original work:
 
-## Requirements
+```bibtex
+@mastersthesis{isik2026iterative,
+  author  = {Işık, Ö. F.},
+  title   = {An Iterative Transformer Framework for Isolated {Turkish} Sign Language Recognition},
+  school  = {Hacettepe Üniversitesi, Fen Bilimleri Enstitüsü},
+  year    = {2026},
+  type    = {Yüksek Lisans Tezi},
+  address = {Ankara, Türkiye}
+}
 
-This code base has following dependencies:
-
-- Python 3.8.5
-- PyTorch 1.7.1
-- Torchvision 0.8.2 with PyAV 8.0.2
-- PyTorch Lightning 1.1.1
-- OpenCV-Python 4.3.0.36
-
-Older and newer versions of these dependencies may work as well but are not tested.
-
-I recommend you create a virtual environment and install the dependencies using:
-
-```bash
-python3 -m venv .env
-source .env/bin/activate
-pip install --upgrade pip   # Make sure you have the latest version of pip
-pip install -r src/requirements.txt
-```
-
-### Hardware
-
-For GPUs with small memory capacity, you can use the reduce the batch size
-by a factor `n` and use the `--accumulate-grad-batches n` option during training.
-We use `--batch_size 4 --accumulate-grad-batches 8` to emulate a batch size of 32.
-
-*Using more than 1 GPU is currently **not** supported! If you run out of VRAM, use the above option.*
-
-## Dataset preparations
-
-If you wish to reproduce our results, you will need to prepare some folders for the data.
-First, create the following directory hierarchy (the absolute location of `project` does not matter and neither does it name):
-
-```
-project/
-project/data
-project/data/mp4
-project/data/kp
-project/data/kpflow2
-```
-
-This can be done using the command
-
-```bash
-mkdir -p project/data/{mp4,kp,kpflow2}
-```
-
-Copy the CSV files from the `data/` directory in this repository to the `project/` directory.
-These are the prediction templates and the label files.
-See also `data/README.md` for more information.
-
-Create a `train`, `val` and `test` directory under `project/data/mp4`.
-
-```bash
-mkdir -p project/data/mp4/{train,val,test}
-```
-
-Place the corresponding MP4 files there. They can be found on the [competition website](http://chalearnlap.cvc.uab.es/dataset/40/description/#).
-
-These directories will also be created under `kp` and `kpflow2` when the corresponding
-feature extraction code is executed. You do not need to manually create them.
-
-Finally, run the `count_frames.py` script with as argument the path to the `mp4` directory, e.g.,
-
-```bash
-python count_frames.py --input_dir project/data/mp4
-```
-
-Your dataset is now prepared to either extract the keypoint files yourself, or use the ones provided by us.
-
-## Using prepared files
-
-We provide keypoint and pose flow files in the [Releases section](https://github.com/m-decoster/ChaLearn-2021-LAP/releases) to allow for easy reproduction of the results.
-Note that these are large archives, so I have split them in sections. You can extract them using
-
-```bash
-cat kp.tar.bz2.* | tar -jxv
-cat kpflow2.tar.bz2.* | tar -jxv
-```
-
-Then you can proceed with the dataset preparations below without needing to run OpenPose and pose flow extraction yourself.
-That is, you can skip the next section and go directly to [training the models](#training-the-models).
-
-## Reproducing results from scratch
-
-You can also reproduce our results from scratch, starting from the MP4 files.
-In this case, you will need to extract keypoints and pose flow yourself.
-
-### Keypoint extraction
-
-You can extract OpenPose using the OpenPose demo and following command (modify `'0,1'` to match the available GPUs on your machine).
-First you need to install the [OpenPose demo](https://github.com/CMU-Perceptual-Computing-Lab/openpose/blob/master/doc/01_demo.md) and download the [BODY-135 model](https://github.com/CMU-Perceptual-Computing-Lab/openpose_train/tree/master/experimental_models#single-network-whole-body-pose-estimation-model).
-
-```bash
-import glob
-import os
-
-all_files = glob.glob('project/data/mp4/*/*_color.mp4')
-
-CALL_STRING = 'CUDA_VISIBLE_DEVICES={} ./openpose.bin --render_pose 0 --number_people_max 1 --display 0 --video {} --write_json {} --model_pose BODY_135'
-
-for sample in all_files:
-    out_dir = sample.replace('mp4', 'kp').replace('_color.mp4', '')
-    os.makedirs(out_dir, exist_ok=True)
-    c = CALL_STRING.format('0,1', sample, out_dir)
-    os.system(c)
-```
-
-Keypoints will be available as directories of JSON files in a `kp` directory on the same level as the `mp4` directory.
-
-The model also requires pose flow, which can be computed from these keypoint files.
-
-```bash
-cd src
-python extract_poseflow.py --input_dir project/data/kp
-```
-
-Pose flow will be available as `.npy` files in a `kpflow2` directory on the same level as the `mp4` and `kp` directories.
-
-## Training the models
-
-For training, you should create a log directory, to which the experiment details
-as well as Tensorboard event files will be written. We will assume that this
-log directory exists at `$LOG_DIR`.
-
-In our case we use 4 workers for the dataset loading, but you can set this according
-to your CPU's capacity. We will assume that this is set as `$NUM_WORKERS`.
-
-You should download the data yourself and provide the path to our scripts, specifically
-the path to the `.mp4` files. We will assume that this data directory exists at `$DATA_DIR`.
-So for the explanation above,
-
-```console
-$ echo $DATA_DIR
-project/data/mp4
-```
-
-## Training (RGB)
-
-For training on RGB data, use this command.
-
-```bash
-python -m train --log_dir $LOG_DIR --model VTN_HCPF --dataset handcrop_poseflow --num_workers $NUM_WORKERS \
-    --data_dir $DATA_DIR --sequence_length 16 --temporal_stride 2 --learning_rate 1e-4 \
-    --gradient_clip_val=1 --gpus 1 --cnn rn34 --num_layers 4 --num_heads 8 \
-    --batch_size 4 --accumulate-grad-batches 8
-```
-
-## Training (RGB-D)
-
-For training on RGB-D data, use this command.
-
-```bash
-python -m train --log_dir $LOG_DIR --model VTN_HCPF_D --dataset handcrop_poseflow_rgbd --num_workers $NUM_WORKERS \
-    --data_dir $DATA_DIR --sequence_length 16 --temporal_stride 2 --learning_rate 1e-4 \
-    --gradient_clip_val=1 --gpus 1 --cnn rn34 --num_layers 4 --num_heads 8 \
-    --batch_size 4 --accumulate-grad-batches 8
-```
-
-## Inference
-
-The `predict.py` script can be used. This requires an additional prediction template file provided by the challenge organizers. We will assume this file exists at `$PREDICTION_TEMPLATE`.
-
-After training, you should have a checkpoint file at `$CHECKPOINT_PATH`. You can predict using
-
-```bash
-python -m predict --log_dir $LOG_DIR --model $MODEL --dataset $DATASET --num_workers $NUM_WORKERS \
-    --data_dir $DATA_DIR --sequence_length 16 --temporal_stride 2 --learning_rate 1e-4 \
-    --gpus 1 --cnn rn34 --num_layers 4 --num_heads 8 --max_epochs $NUM_EPOCHS \
-    --checkpoint=$CHECKPOINT_PATH --submission_template $PREDICTION_TEMPLATE --out predictions.csv \
-    --batch_size 4
-```
-python -m predict --log_dir /home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/test_logs/ --model VTN_HCPF --dataset handcrop_poseflow --num_workers 4 --data_dir /home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/data/mp4 --sequence_length 16 --temporal_stride 2 --learning_rate 1e-4 --num_layers 4 --num_heads 8 --max_epochs 10 --checkpoint=/home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/src/logs/run_methods/VTN_HCPF/VTN_HCPF/version_19/checkpoints/24-0.3417.ckpt --submission_template /home/omer/Masaüstü/tez_calismasi/codebase/ChaLearn-2021-LAP/predictions_test_template.csv --out predictions.csv --batch_size 8
- 
-
-
-for the `$MODEL` and `$DATASET` of your choice.
-Alternatively, you can use one of the pre-trained models provided in the [Releases section](https://github.com/m-decoster/ChaLearn-2021-LAP/releases)
-(the command remains the same).
-
-## Prediction files
-
-This repository also provides prediction files for the models on both the validation and the test set. These can be found under the `predictions` directory.
-
-## LICENCE
-
-This code is available under the MIT licence (see LICENCE). Part of the code base is based on the Intel OpenVINO toolkit (see LICENCE\_OPENVINO).
-
-## Citation
-
-If you found this code useful, please consider citing this paper:
-
-```
 @InProceedings{De_Coster_2021_CVPR,
     author    = {De Coster, Mathieu and Van Herreweghe, Mieke and Dambre, Joni},
     title     = {Isolated Sign Recognition From RGB Video Using Pose Flow and Self-Attention},
@@ -227,3 +39,48 @@ If you found this code useful, please consider citing this paper:
     pages     = {3441-3450}
 }
 ```
+## ✨ Novel Contributions
+In this repository, we extended the original Video Transformer Network (VTN) by introducing:
+* **ODE Transformer integration** for continuous-time temporal modeling.
+* Modified `src/models/` architecture supporting `rk_type` and `encoder_history_type` arguments.
+* Customized training loop and dynamic hyperparameter configuration via `src/config.sh` and `src/config_paths.py` for optimized memory management and easy local path handling.
+
+## 📊 Experimental Results
+The integration of the ODE-Transformer yields improvements over the standard VTN baseline. Below is a comparative table of the best results achieved:
+
+| Model Configuration | `encoder_calculate_num` | `rk_type` | `encoder_history_type` | Accuracy  |
+| :--- | :--- | :--- | :--- | :--- |
+| **Baseline (Standard VTN)** | `baseline` | `none` | `none` | **93.05%**  |
+| ODE-Transformer | `rk2` | `none` | `none` | 93.26%  |
+| **ODE-Transformer (Best)** | `rk2` | `none` | `dense` | **93.99%** |
+
+*Results obtained from the last checkpoint on the test set.*
+
+## 🚀 Getting Started
+
+### Prerequisites
+Install the required dependencies:
+```bash
+pip install -r src/requirements.txt
+```
+
+### Dataset Structure
+Ensure your dataset is placed under the `data/` directory. The codebase expects the following structure by default:
+- `data/mp4/`
+- `data/kp/`
+- `data/kpflow2/`
+
+*Note: All paths are dynamically handled via `src/config_paths.py`. If you change the data location, simply update the paths in `config_paths.py` without modifying the core logic.*
+
+### Training the Model
+We provide an easy-to-use bash script to configure hyperparameters (such as batch size, learning rate, and ODE configurations) and run the training pipeline:
+
+1. Edit the hyperparameters in `src/config.sh`
+2. Run the experiment:
+```bash
+cd src
+python run_experiment.py
+```
+
+## 📜 License
+This project inherits the license of the original ChaLearn-2021-LAP repository. Please see the `LICENCE` file for details.

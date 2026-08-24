@@ -1,6 +1,37 @@
-pretrained_models/*
-data/*
-venv/*
-logs/*
-src/log*
-test_logs/*
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+venv/
+.env
+.venv
+env/
+ENV/
+
+# Data and Logs
+data/
+logs/
+test_logs/
+test_logs-f1/
+predictions/
+predictions.csv
+*.ckpt
+*.yaml
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+._.DS_Store
+*.swp
+
+# Thesis related temporary files
+*.csv
+!train_val_labels_STAGE1.csv
+!train_val_labels_STAGE2.csv
+!train_labels.csv
+!val_labels.csv
+!predictions_test_template.csv
+!predictions_validation_template.csv
